@@ -1,3 +1,4 @@
+import { contentResponse } from "./contentApi.ts";
 import { reviewerIdentity } from "./reviewAuth.ts";
 import { boundedBytes } from "./notesApi.ts";
 import { dateBounds } from "./memoryMetadata.ts";
@@ -6,7 +7,7 @@ import { memoryCatalog, photographResponse } from "./photoStorage.ts";
 
 export type ReviewStatus = "pending" | "approved" | "declined" | "hidden";
 export type ReviewNote = { id: string; name: string; body: string; createdAt: string; status: ReviewStatus; version: number; reviewedBy: string | null; reviewedAt: string | null; email?: string | null; photo?: MemoryPhoto };
-export type ReviewEvent = { id: string; reviewer: string; action: "approve" | "decline" | "hide"; previousStatus: ReviewStatus; status: ReviewStatus; createdAt: string; detailsChanged?: number };
+export type ReviewEvent = { id: string; reviewer: string; action: "approve" | "decline" | "hide" | "edit" | "restore"; before?: { name: string; body: string; photo?: MemoryPhoto }; after?: { name: string; body: string; photo?: MemoryPhoto }; previousStatus: ReviewStatus; status: ReviewStatus; createdAt: string; detailsChanged?: number };
 type ReviewRow = ReviewNote & { photo_json: string | null; contact_email: string | null };
 const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow" };
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers });
@@ -22,6 +23,7 @@ export async function reviewResponse(request: Request, env: CloudflareEnv): Prom
   if (!reviewer) return json({ error: "Please sign in with an authorized family email." }, 401);
   const url = new URL(request.url);
   try {
+    if (url.pathname.startsWith("/family/api/content/")) return await contentResponse(request, env, reviewer);
     const photograph = /^\/family\/api\/notes\/([a-f0-9-]{36})\/photo$/.exec(url.pathname);
     if (photograph) return await photographResponse(request, env, photograph[1], true);
     if (url.pathname === "/family/api/notes" && request.method === "GET") {

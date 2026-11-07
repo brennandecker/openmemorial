@@ -16,7 +16,7 @@ before(async () => {
   const publicJWK = { ...await exportJWK(publicKey), kid: "test-key", alg: "RS256", use: "sig" };
   const sign = (email: string, audience = "family-review", expiration = "1h") => new SignJWT({ email }).setProtectedHeader({ alg: "RS256", kid: "test-key" }).setIssuer(issuer).setAudience(audience).setSubject(email).setIssuedAt().setExpirationTime(expiration).sign(privateKey);
   identity = await sign("reviewer1@example.test"); secondIdentity = await sign("reviewer2@example.test"); wrongIdentity = await sign("stranger@example.test"); wrongAudience = await sign("reviewer1@example.test", "another-app"); expired = await sign("reviewer1@example.test", "family-review", "-1h");
-  const bundled = await build({ stdin: { contents: 'import { notesResponse } from "./notesApi.ts"; import { reviewResponse } from "./reviewApi.ts"; export default { fetch(request,env) { return new URL(request.url).pathname.startsWith("/family/") ? reviewResponse(request,env) : notesResponse(request,env); } };', resolveDir: new URL("../src/", import.meta.url).pathname }, bundle: true, write: false, format: "esm", platform: "browser", target: "es2022" });
+  const bundled = await build({ stdin: { contents: 'import { notesResponse } from "./notesApi.ts"; import { reviewResponse } from "./reviewApi.ts"; import { initialMemorial } from "./memorial.ts"; import { mediaMetadata } from "./photoWallData.ts"; initialMemorial.photos.push("/test-original.jpg"); mediaMetadata["/test-original.jpg"]={id:"test-original",kind:"photo",caption:"Original fixture",message:"",peopleIds:[],width:4,height:3}; export default { fetch(request,env) { return new URL(request.url).pathname.startsWith("/family/") ? reviewResponse(request,env) : notesResponse(request,env); } };', resolveDir: new URL("../src/", import.meta.url).pathname }, bundle: true, write: false, format: "esm", platform: "browser", target: "es2022" });
   runtime = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundled.outputFiles[0].text, compatibilityDate: "2026-11-06", d1Databases: ["NOTES"], r2Buckets: ["MEMORY_PHOTOS"], images: { binding: "IMAGES" }, bindings: { TURNSTILE_SECRET: "test-secret", TURNSTILE_SITEKEY: "test-sitekey", TURNSTILE_HOSTNAMES: "wall.example", ACCESS_TEAM_DOMAIN: issuer, ACCESS_AUD: "family-review", MODERATOR_EMAILS: "reviewer1@example.test,reviewer2@example.test" }, ratelimits: { NOTE_LIMITER: { namespace_id: "87175743", simple: { limit: 3, period: 60 } } }, outboundService: async request => {
     if (request.url === `${issuer}/cdn-cgi/access/certs`) return Response.json({ keys: [publicJWK] });
     if (request.url === "https://challenges.cloudflare.com/turnstile/v0/siteverify") {
@@ -30,7 +30,7 @@ before(async () => {
     return new Response("Unexpected outbound request", { status: 500 });
   } }));
   const db = await runtime.getD1Database("NOTES");
-  for (const file of ["0001_wall_notes.sql", "0002_memory_approval.sql", "0003_memory_photos.sql"]) { const schema = await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"); await db.batch(schema.split(/;\s*(?=ALTER|CREATE|UPDATE|$)/).filter(sql => sql.trim()).map(sql => db.prepare(sql))); if (file === "0001_wall_notes.sql") await db.batch([db.prepare("INSERT INTO wall_notes(id,name,body,created_at,hidden) VALUES('legacy-visible','Fixture','Previously public','2020-01-01T00:00:00Z',0)"),db.prepare("INSERT INTO wall_notes(id,name,body,created_at,hidden) VALUES('legacy-hidden','Fixture','Previously hidden','2020-01-01T00:00:00Z',1)")]); }
+  for (const file of ["0001_wall_notes.sql", "0002_memory_approval.sql", "0003_memory_photos.sql", "0004_wall_management.sql"]) { const schema = await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"); await db.batch(schema.split(/;\s*(?=ALTER|CREATE|UPDATE|$)/).filter(sql => sql.trim()).map(sql => db.prepare(sql))); if (file === "0001_wall_notes.sql") await db.batch([db.prepare("INSERT INTO wall_notes(id,name,body,created_at,hidden) VALUES('legacy-visible','Fixture','Previously public','2020-01-01T00:00:00Z',0)"),db.prepare("INSERT INTO wall_notes(id,name,body,created_at,hidden) VALUES('legacy-hidden','Fixture','Previously hidden','2020-01-01T00:00:00Z',1)")]); }
 });
 after(async () => { await runtime?.dispose(); });
 const post = (value: unknown, ip: string = crypto.randomUUID(), origin = "https://wall.example") => runtime.dispatchFetch("https://wall.example/api/notes", { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "CF-Connecting-IP": ip }, body: JSON.stringify(value && typeof value === "object" ? { consent: true, policyVersion: "2026-11-07", ...value } : value) });
@@ -161,4 +161,45 @@ test("processed JPEGs discard EXIF, XMP, IPTC and comments without changing imag
   const source = new Uint8Array([255,216,255,225,0,6,71,80,83,0,255,237,0,4,88,77,255,254,0,4,72,73,255,219,0,4,1,2,255,218,1,2,3,255,217]);
   assert.deepEqual(Array.from(stripJpegMetadata(source.buffer)), [255,216,255,219,0,4,1,2,255,218,1,2,3,255,217]);
   assert.throws(() => stripJpegMetadata(new Uint8Array([255,216,255,225,255,255]).buffer));
+});
+
+test("original wall edits are authenticated, recoverable, concurrent-safe and reflected publicly", async () => {
+  const publicWall=async()=>await (await runtime.dispatchFetch("https://wall.example/api/wall")).json() as {items:{id:string;name:string;body:string;photo?:{people:{id:string;label:string}[];src:string}}[]};
+  const original=(await publicWall()).items.find(item=>item.id === "test-original")!;assert.ok(original);
+  const endpoint=`https://wall.example/family/api/content/curated/${original.id}`;
+  const manage=(value:unknown,jwt=identity,origin="https://wall.example")=>runtime.dispatchFetch(endpoint,{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","Cf-Access-Jwt-Assertion":jwt},body:JSON.stringify(value)});
+  for(const jwt of ["",wrongIdentity,wrongAudience,expired])assert.equal((await manage({action:"hide",version:0},jwt)).status,401);
+  assert.equal((await manage({action:"hide",version:0},identity,"https://other.example")).status,403);
+  assert.deepEqual((await Promise.all([manage({action:"hide",version:0}),manage({action:"hide",version:0},secondIdentity)])).map(r=>r.status).sort(),[200,409]);
+  assert.equal((await publicWall()).items.some(item=>item.id===original.id),false);
+  assert.equal((await manage({action:"restore",version:1})).status,200);
+  const edit={action:"edit",version:2,name:"Corrected front caption",body:"An edited memory",photo:{...emptyPhotoDraft,personEntries:[{name:"New relative"}],date:"2018-05",city:"New Town",state:"OR",country:"US",src:"https://bad.example/image.jpg",key:"arbitrary"}};
+  assert.equal((await manage(edit)).status,200);
+  const changed=(await publicWall()).items.find(item=>item.id===original.id)!;
+  assert.equal(changed.name,"Corrected front caption");assert.equal(changed.photo!.src,original.photo!.src);assert.equal(changed.body,"An edited memory");assert.ok(!JSON.stringify(changed).includes("updatedBy"));
+  const historyResponse=await runtime.dispatchFetch(endpoint+"/history",{headers:{"Cf-Access-Jwt-Assertion":identity}});assert.equal(historyResponse.status,200);
+  const history=await historyResponse.json() as {history:{id:string;action:string;before?:{body:string}}[]};
+  assert.equal(history.history.length,3);const event=history.history.find(event=>event.action==="edit")!;assert.equal(event.before?.body,original.body);
+  assert.equal((await manage({action:"edit",version:3,restoreId:event.id})).status,200);
+  assert.equal((await publicWall()).items.find(item=>item.id===original.id)?.name,original.name);
+  assert.equal((await manage({action:"edit",version:3,name:"stale",body:"stale"})).status,409);
+  assert.equal((await runtime.dispatchFetch(endpoint+"/history")).status,401);
+  const db=await runtime.getD1Database("NOTES");await db.batch([db.prepare("DELETE FROM wall_content_changes WHERE item_kind='curated' AND item_id=?").bind(original.id),db.prepare("DELETE FROM wall_curated_edits WHERE id=?").bind(original.id)]);
+});
+
+test("family can edit published visitor messages without changing visibility and recover the original",async()=>{
+  const id=crypto.randomUUID(),db=await runtime.getD1Database("NOTES");
+  await db.prepare("INSERT INTO wall_notes(id,name,body,created_at,status) VALUES(?,?,?,?,?)").bind(id,"Original author","Original words","2022-02-01T12:00:00Z","approved").run();
+  const endpoint=`https://wall.example/family/api/content/submission/${id}`;
+  const edit=(value:unknown)=>runtime.dispatchFetch(endpoint,{method:"POST",headers:{Origin:"https://wall.example","Content-Type":"application/json","Cf-Access-Jwt-Assertion":identity},body:JSON.stringify(value)});
+  assert.equal((await edit({action:"edit",version:0,name:"Corrected author",body:"Corrected words"})).status,200);
+  const row=await db.prepare("SELECT status,name,memory_text,review_version FROM wall_notes WHERE id=?").bind(id).first();assert.deepEqual(row,{status:"approved",name:"Corrected author",memory_text:"Corrected words",review_version:1});
+  assert.equal((await edit({action:"edit",version:1,name:"A",body:""})).status,400);
+  const history=await(await runtime.dispatchFetch(endpoint+"/history",{headers:{"Cf-Access-Jwt-Assertion":identity}})).json() as {history:{id:string;before:{name:string;body:string}}[]};assert.equal(history.history[0].before.body,"Original words");
+  assert.equal((await edit({action:"edit",version:1,restoreId:history.history[0].id})).status,200);
+  assert.equal((await publicNotes()).notes.find(note=>note.id===id)?.body,"Original words");
+  assert.equal((await review(id,"hide",2)).status,200);
+  assert.equal((await edit({action:"edit",version:3,name:"Private edit",body:"Still private"})).status,200);
+  assert.equal((await publicNotes()).notes.some(note=>note.id===id),false);
+  await db.batch([db.prepare("DELETE FROM wall_content_changes WHERE item_kind='submission' AND item_id=?").bind(id),db.prepare("DELETE FROM wall_note_reviews WHERE note_id=?").bind(id),db.prepare("DELETE FROM wall_notes WHERE id=?").bind(id)]);
 });

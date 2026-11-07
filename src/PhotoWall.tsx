@@ -1,9 +1,10 @@
+import type { CuratedItem } from "./curatedWall";
 import SiteFooter from "./SiteFooter";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Pause, Play } from "lucide-react";
 import { formatDate, initialMemorial, photoCaption } from "./memorial";
 import { headerPhotograph, photoNotes, mediaMetadata, people, places, type PhotoNote } from "./photoWallData";
-import { firstWallNotes, type WallNote } from "./wallNotes";
+import { type WallNote } from "./wallNotes";
 import { LeaveNote, WrittenNote } from "./NoteCards";
 import { ageLabel, dateMatches, emptyFilters, mediaMatches, filterBounds, hasFilters, formatMemoryDate, type MediaMetadata, type WallFilters as Filters } from "./memoryMetadata";
 import type { MemoryCatalog } from "./memoryPhoto";
@@ -143,6 +144,10 @@ function columnsForViewport() {
 }
 
 export default function PhotoWall() {
+  const [curated,setCurated] = useState<CuratedItem[] | null>(null);
+  const [curatedError,setCuratedError] = useState(false);
+  const [curatedRetry,setCuratedRetry] = useState(0);
+  useEffect(() => { const controller=new AbortController();setCuratedError(false);void fetch("/api/wall",{signal:controller.signal}).then(async response=>{if(!response.ok)throw new Error();const result=await response.json() as {items:CuratedItem[]};if(!controller.signal.aborted)setCurated(result.items);}).catch(()=>{if(!controller.signal.aborted)setCuratedError(true);});return()=>controller.abort();},[curatedRetry]);
   const [columnCount, setColumnCount] = useState(columnsForViewport);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [autoplayLightbox, setAutoplayLightbox] = useState(false);
@@ -185,8 +190,10 @@ export default function PhotoWall() {
     queries.forEach(query => query.addEventListener("change", updateColumns));
     return () => queries.forEach(query => query.removeEventListener("change", updateColumns));
   }, []);
-  const photos: Scrap[] = initialMemorial.photos.map(src => ({ src, title: photoCaption(src) }));
-  const videos: Scrap[] = (initialMemorial.videos || []).map(v => ({ src: v.src, title: v.title, poster: v.poster, video: true }));
+  const originals: Scrap[] = (curated || []).filter(item => item.photo).map(item => {
+    const p=item.photo!;return {src:p.src,title:item.name,poster:item.poster,video:item.kind === "video",note:{message:item.body,people:p.people.map(person=>person.label).join(", "),date:formatMemoryDate(p.takenOn),location:p.place?.label || "",width:p.width,height:p.height},meta:{id:item.id,kind:item.kind === "video" ? "video" : "photo",caption:item.name,message:item.body,width:p.width,height:p.height,takenOn:p.takenOn,peopleIds:p.people.map(person=>person.id),placeId:p.place?.id}};
+  });
+  const photos = originals.filter(item => !item.video), videos = originals.filter(item => item.video);
   const contributedPhotos: Scrap[] = notes.filter(note => note.photo).map(note => {
     const p = note.photo!;
     const title = p.people.map(person => person.label).join(", ") || p.caption || `A photograph shared by ${note.name}`;
@@ -205,7 +212,7 @@ export default function PhotoWall() {
   type WallItem = { key: string; scrap: Scrap } | { key: string; note: WallNote };
   const photoItems: WallItem[] = visibleScraps.map(scrap => ({ key: scrap.src, scrap }));
   const notesVisible = (filters.kind === "all" || filters.kind === "note") && !filters.people.length && !filters.places.length;
-  const visibleNotes = notesVisible ? [...firstWallNotes, ...notes.filter(note => !note.photo)].filter(note => dateMatches(note.createdAt ? { value: postedDay(note.createdAt), precision: "day", source: "family" } : undefined, filters)) : [];
+  const visibleNotes = notesVisible ? [...(curated || []).filter(item=>item.kind === "note").map(item=>({id:item.id,name:item.name,body:item.body,createdAt:item.createdAt,pinned:item.pinned})), ...notes.filter(note => !note.photo)].filter(note => dateMatches(note.createdAt ? { value: postedDay(note.createdAt), precision: "day", source: "family" } : undefined, filters)) : [];
   const birthYear = Number(initialMemorial.birth.slice(0, 4));
   const latestYear = Math.max(Number(initialMemorial.death.slice(0, 4)) || 0, ...Object.values(mediaMetadata).map(media => Number(media.takenOn?.value.slice(0, 4)) || 0), ...notes.map(note => Number(postedDay(note.createdAt).slice(0, 4))));
   const years = Number.isInteger(birthYear) && birthYear > 0 && latestYear >= birthYear && latestYear - birthYear < 200 ? Array.from({ length: latestYear - birthYear + 1 }, (_, index) => birthYear + index) : [...new Set(Object.values(mediaMetadata).map(media => Number(media.takenOn?.value.slice(0, 4))).filter(Boolean))].sort();
@@ -229,12 +236,14 @@ export default function PhotoWall() {
     <div className="wall-filter-status" role="status">{hasFilters(filters) && <>{items.length} {items.length === 1 ? "memory" : "memories"}{hasMore && notesVisible ? " loaded" : ""}</>}</div>
     {filters.year !== "unknown" && !filterBounds(filters) && <p className="wall-filter-error">Choose an end date on or after the start date, within the selected year.</p>}
     <p className="note-announcement" role="status">{noteStatus}</p>
+    {curatedError && <p className="review-error" role="alert">The photographs couldn’t load. <button onClick={()=>setCuratedRetry(value=>value+1)}>Try again</button></p>}
+    {!curated && !curatedError && <p role="status">Loading photographs…</p>}
     <section className="wall-grid" style={{ "--wall-columns": columnCount } as CSSProperties} aria-label={`Photographs and memories of ${initialMemorial.name}`}>
       {columns.map((column, index) => <div className="wall-column" key={index}>
         {column.map(({ item, index }) => "scrap" in item ? <Photo key={item.key} scrap={item.scrap} index={index} open={openPhoto} /> : <WrittenNote key={item.key} note={item.note} />)}
       </div>)}
     </section>
-    {items.length === 0 && !loadingNotes && <div className="wall-empty"><p>No memories match these filters.</p><button onClick={() => setFilters({ ...emptyFilters })}>Show everything</button></div>}
+    {items.length === 0 && curated !== null && !loadingNotes && <div className="wall-empty"><p>No memories match these filters.</p><button onClick={() => setFilters({ ...emptyFilters })}>Show everything</button></div>}
     {(hasMore || notesError) && <div className="wall-notes-more">{notesError && <p>Memories couldn’t be loaded.</p>}<button disabled={loadingNotes} onClick={() => void loadNotes(notesError ? page : page + 1)}>{loadingNotes ? "Loading…" : notesError ? "Try again" : "More memories"}</button></div>}
     <SiteFooter />
     {lightboxIndex !== null && <Lightbox photos={lightboxPhotos} index={lightboxIndex} change={setLightboxIndex} startPlaying={autoplayLightbox} close={() => setLightboxIndex(null)} />}

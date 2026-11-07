@@ -1,3 +1,4 @@
+import { curatedWall } from "./curatedWall.ts";
 import { people, places } from "./photoWallData.ts";
 import { maxPhotoBytes, readStoredPhoto, type MemoryCatalog, type StoredPhoto } from "./memoryPhoto.ts";
 
@@ -9,6 +10,10 @@ export async function memoryCatalog(env: Pick<CloudflareEnv, "NOTES">): Promise<
   ]);
   for (const p of persons.results) if (typeof p.id === "string" && typeof p.label === "string" && !catalog.people[p.id]) catalog.people[p.id] = { id: p.id, name: p.label };
   for (const p of locations.results) if (typeof p.id === "string" && typeof p.label === "string") catalog.places[p.id] = { ...(catalog.places[p.id] || {}), id: p.id, label: p.label, ...(typeof p.parentId === "string" ? { parentId: p.parentId } : {}), ...(typeof p.city === "string" ? { city: p.city } : {}), ...(typeof p.state === "string" ? { state: p.state } : {}), ...(typeof p.country === "string" ? { country: p.country } : {}) };
+  for (const item of await curatedWall(env)) if (!item.hidden && item.photo) {
+    for (const person of item.photo.people) if (!catalog.people[person.id]) catalog.people[person.id] = { id: person.id, name: person.label };
+    if (item.photo.place) catalog.places[item.photo.place.id] = item.photo.place;
+  }
   return catalog;
 }
 

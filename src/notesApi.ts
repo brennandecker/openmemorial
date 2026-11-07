@@ -1,6 +1,7 @@
+import { curatedWall, publicCurated } from "./curatedWall.ts";
 import { notifyFamily } from "./notifyFamily.ts";
 import { dateBounds, filterBounds } from "./memoryMetadata.ts";
-import { midnightInstant, nextDay } from "./wallSettings.ts";
+import { midnightInstant, nextDay, postedDay } from "./wallSettings.ts";
 import { verifySubmission } from "./botVerification.ts";
 import { memoryPolicyVersion, maxPhotoBytes, publicPhoto, readStoredPhoto, validatePhotoDraft, type StoredPhoto } from "./memoryPhoto.ts";
 import { cleanPhotograph, memoryCatalog, photographResponse } from "./photoStorage.ts";
@@ -33,6 +34,7 @@ export async function notesResponse(request: Request, env: NoteEnv): Promise<Res
   if (url.pathname === "/api/config" && request.method === "GET") return json({ turnstileSitekey: env.TURNSTILE_SITEKEY || "" });
   const photoMatch = /^\/api\/photos\/([a-f0-9-]{36})$/.exec(url.pathname);
   try {
+    if (url.pathname === "/api/wall" && request.method === "GET") return json({ items: publicCurated(await curatedWall(env)) });
     if (photoMatch) return await photographResponse(request, env, photoMatch[1]);
     if (url.pathname === "/api/catalog" && request.method === "GET") return json(await memoryCatalog(env));
     if (url.pathname !== "/api/notes") return invalid("Not found.", 404);
@@ -97,7 +99,7 @@ export async function notesResponse(request: Request, env: NoteEnv): Promise<Res
     const dates = dateBounds(photo?.takenOn);
     try {
       // Preserve the legacy body constraint; memory_text is the contributor's actual text.
-      await env.NOTES.prepare("INSERT INTO wall_notes(id,name,body,memory_text,created_at,status,contact_email,consented_at,policy_version,photo_json,photo_from,photo_to) VALUES(?1,?2,?3,?4,?5,'pending',?6,?5,?7,?8,?9,?10)").bind(id, validated.name, validated.body || "Photograph", validated.body, now, email || null, memoryPolicyVersion, photo ? JSON.stringify(photo) : null, dates?.from || null, dates?.to || null).run();
+      await env.NOTES.prepare("INSERT INTO wall_notes(id,name,body,memory_text,created_at,status,contact_email,consented_at,policy_version,photo_json,photo_from,photo_to,posted_on) VALUES(?1,?2,?3,?4,?5,'pending',?6,?5,?7,?8,?9,?10,?11)").bind(id, validated.name, validated.body || "Photograph", validated.body, now, email || null, memoryPolicyVersion, photo ? JSON.stringify(photo) : null, dates?.from || null, dates?.to || null, postedDay(now)).run();
     } catch (error) { if (photo) await env.MEMORY_PHOTOS.delete(photo.key); throw error; }
     const notified = await notifyFamily(env);
     return json({ submitted: true, ...(env.FAMILY_EMAIL ? { notified } : {}) }, 202);

@@ -11,8 +11,8 @@ export async function notifyFamily(env: NotificationEnv): Promise<boolean> {
       from: env.NOTIFICATION_FROM,
       bcc: recipients,
       subject: "A memory is waiting for family approval",
-      text: `A new memory has been shared on your memorial. It is private until approved.\n\nSign in to review it: ${review.href}\n\nEither invited family reviewer can approve or decline it.`,
-      html: `<p>A new memory has been shared on your memorial. It is private until approved.</p><p><a href="${review.href.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}">Sign in to review</a></p><p>Either invited family reviewer can approve or decline it.</p>`,
+      text: `A new memory has been shared on your memorial. It is private until approved.\n\nSign in to review it: ${review.href}\n\nAn invited family manager can approve or decline it.`,
+      html: `<p>A new memory has been shared on your memorial. It is private until approved.</p><p><a href="${review.href.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}">Sign in to review</a></p><p>An invited family manager can approve or decline it.</p>`,
     });
     return true;
   } catch {
