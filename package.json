@@ -1,0 +1,32 @@
+{
+  "name": "openmemorial",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "deploy": "npm run build && wrangler deploy",
+    "share:build": "node --experimental-strip-types scripts/generate-share-slideshow.mjs",
+    "prebuild": "node scripts/generate-video-sizes.mjs"
+  },
+  "dependencies": {
+    "jose": "6.2.15",
+    "lucide-react": "1.31.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "esbuild": "0.28.2",
+    "miniflare": "5.20261104.0-beta",
+    "typescript": "5.9.3",
+    "vite": "8.3.6",
+    "wrangler": "4.158.0"
+  }
+}

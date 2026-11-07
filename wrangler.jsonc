@@ -1,0 +1,51 @@
+{
+  "name": "memorial-scrapbook",
+  "compatibility_date": "2026-11-06",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/share/*",
+      "/memories/*.mp4",
+      "/api/*",
+      "/family",
+      "/family/*"
+    ]
+  },
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  },
+  "main": "src/videoWorker.ts",
+  "d1_databases": [
+    {
+      "binding": "NOTES",
+      "database_name": "memorial-wall-notes",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "NOTE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
+  "secrets": {
+    "required": [
+      "TURNSTILE_SECRET",
+      "TURNSTILE_SITEKEY",
+      "TURNSTILE_HOSTNAMES",
+      "ACCESS_TEAM_DOMAIN",
+      "ACCESS_AUD",
+      "MODERATOR_EMAILS"
+    ]
+  }
+}
