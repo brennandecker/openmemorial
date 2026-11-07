@@ -56,5 +56,21 @@
   ],
   "images": {
     "binding": "IMAGES"
-  }
+  },
+  "vars": {
+    "NOTIFICATION_FROM": "memories@notifications.example.com",
+    "NOTIFICATION_REVIEW_URL": "https://example.com/family"
+  },
+  "send_email": [
+    {
+      "name": "FAMILY_EMAIL",
+      "allowed_sender_addresses": [
+        "memories@notifications.example.com"
+      ],
+      "allowed_destination_addresses": [
+        "reviewer1@example.com",
+        "reviewer2@example.com"
+      ]
+    }
+  ]
 }

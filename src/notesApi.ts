@@ -1,3 +1,4 @@
+import { notifyFamily } from "./notifyFamily.ts";
 import { dateBounds, filterBounds } from "./memoryMetadata.ts";
 import { midnightInstant, nextDay } from "./wallSettings.ts";
 import { verifySubmission } from "./botVerification.ts";
@@ -7,7 +8,7 @@ import { cleanPhotograph, memoryCatalog, photographResponse } from "./photoStora
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const json = (body: unknown, status = 200, extra = {}) => Response.json(body, { status, headers: { ...headers, ...extra } });
 const invalid = (error: string, status = 400) => json({ error }, status);
-type NoteEnv = Pick<CloudflareEnv, "NOTES" | "NOTE_LIMITER" | "TURNSTILE_SECRET" | "TURNSTILE_HOSTNAMES" | "TURNSTILE_SITEKEY" | "MEMORY_PHOTOS" | "IMAGES">;
+type NoteEnv = Pick<CloudflareEnv, "NOTES" | "NOTE_LIMITER" | "TURNSTILE_SECRET" | "TURNSTILE_HOSTNAMES" | "TURNSTILE_SITEKEY" | "MEMORY_PHOTOS" | "IMAGES" | "FAMILY_EMAIL" | "NOTIFICATION_FROM" | "NOTIFICATION_REVIEW_URL" | "MODERATOR_EMAILS">;
 
 export function validateNote(value: unknown, hasPhoto = false): { name: string; body: string } | null {
   if (!value || typeof value !== "object") return null;
@@ -98,7 +99,8 @@ export async function notesResponse(request: Request, env: NoteEnv): Promise<Res
       // Preserve the legacy body constraint; memory_text is the contributor's actual text.
       await env.NOTES.prepare("INSERT INTO wall_notes(id,name,body,memory_text,created_at,status,contact_email,consented_at,policy_version,photo_json,photo_from,photo_to) VALUES(?1,?2,?3,?4,?5,'pending',?6,?5,?7,?8,?9,?10)").bind(id, validated.name, validated.body || "Photograph", validated.body, now, email || null, memoryPolicyVersion, photo ? JSON.stringify(photo) : null, dates?.from || null, dates?.to || null).run();
     } catch (error) { if (photo) await env.MEMORY_PHOTOS.delete(photo.key); throw error; }
-    return json({ submitted: true }, 202);
+    const notified = await notifyFamily(env);
+    return json({ submitted: true, ...(env.FAMILY_EMAIL ? { notified } : {}) }, 202);
   } catch {
     console.error(JSON.stringify({ event: "wall_notes_unavailable" }));
     return invalid("The wall is unavailable for a moment. Please try again.", 503);

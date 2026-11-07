@@ -118,12 +118,12 @@ test("date filtering happens before pagination and uses the memorial time zone",
 test("one optional photograph stays private, supports corrected metadata, and is hidden with its memory", async () => {
   const bytes = await readFile(new URL("./fixtures/photo.png", import.meta.url));
   const form = new FormData();
-  form.set("memory", JSON.stringify({ name: "Photo fixture", body: "", email: "private@example.test", consent: true, policyVersion: "2026-11-07", token: "valid-photo", photo: { ...emptyPhotoDraft, caption: "A shared afternoon", date: "2017-06", dateSource: "camera", otherPeople: "Aunt Test", location: "Test City, OR" } }));
+  form.set("memory", JSON.stringify({ name: "Photo fixture", body: "", email: "private@example.test", consent: true, policyVersion: "2026-11-07", token: "valid-photo", photo: { ...emptyPhotoDraft, caption: "A shared afternoon", date: "2017-06", dateSource: "family", dateEvidence: { cameraDate: "2014-10-25", enteredDate: "2017-06", selected: "entered" }, otherPeople: "Aunt Test", location: "Test City, OR" } }));
   form.set("photo", new File([bytes], "photo.png", { type: "image/png" }));
   const result = await uploadForm(form);
   assert.equal(result.status, 202, await result.text());
   const db = await runtime.getD1Database("NOTES");
-  const row = await db.prepare("SELECT id,photo_json,consented_at,policy_version FROM wall_notes WHERE name='Photo fixture'").first<{ id: string; photo_json: string; consented_at: string; policy_version: string }>(); assert.ok(row); assert.ok(row.consented_at); assert.equal(row.policy_version, "2026-11-07");
+  const row = await db.prepare("SELECT id,photo_json,consented_at,policy_version FROM wall_notes WHERE name='Photo fixture'").first<{ id: string; photo_json: string; consented_at: string; policy_version: string }>(); assert.ok(row); assert.equal(JSON.parse(row.photo_json).dateEvidence.cameraDate, "2014-10-25"); assert.ok(row.consented_at); assert.equal(row.policy_version, "2026-11-07");
   const image = () => runtime.dispatchFetch(`https://wall.example/api/photos/${row.id}`);
   assert.equal((await image()).status, 404);
   assert.equal((await publicNotes()).notes.some(n => n.id === row.id), false);
@@ -134,13 +134,13 @@ test("one optional photograph stays private, supports corrected metadata, and is
   const decision = await runtime.dispatchFetch(`https://wall.example/family/api/notes/${row.id}/review`, { method: "POST", headers: { Origin: "https://wall.example", "Content-Type": "application/json", "Cf-Access-Jwt-Assertion": secondIdentity }, body: JSON.stringify({ action: "approve", version: 1, photo: { ...emptyPhotoDraft, caption: "A corrected caption", date: "2014-10-25", otherPeople: "Aunt Test", location: "Test City, OR" } }) });
   assert.equal(decision.status, 200, await decision.text());
   const publicResponse = await runtime.dispatchFetch("https://wall.example/api/notes?kind=photo&year=2014"); const publicText = await publicResponse.text();
-  assert.ok(publicText.includes(row.id)); assert.ok(publicText.includes("2014-10-25")); assert.ok(publicText.includes('"body":""')); assert.ok(!publicText.includes("private@example.test")); assert.ok(!publicText.includes("memories/"));
+  assert.ok(publicText.includes(row.id)); assert.ok(publicText.includes("2014-10-25")); assert.ok(publicText.includes('"body":""')); assert.ok(!publicText.includes("private@example.test")); assert.ok(!publicText.includes("memories/")); assert.ok(!publicText.includes("dateEvidence"));
   assert.equal((await publicNotes("?kind=photo&year=2017")).notes.some(n => n.id === row.id), false);
   const shown = await image(); assert.equal(shown.status, 200); assert.equal(shown.headers.get("Content-Type"), "image/jpeg"); assert.equal(shown.headers.get("Cache-Control"), "private, no-store"); const jpeg = new Uint8Array(await shown.arrayBuffer()); assert.deepEqual(Array.from(jpeg.slice(0, 2)), [255, 216]);
   const catalog = await (await runtime.dispatchFetch("https://wall.example/api/catalog")).json() as { people: Record<string, { name: string }>; places: Record<string, { label: string }> };
   const person = Object.keys(catalog.people).find(id => catalog.people[id].name === "Aunt Test")!, location = Object.keys(catalog.places).find(id => catalog.places[id].label === "Test City, OR")!;
   assert.ok(person); assert.ok(location); assert.equal((await publicNotes(`?kind=photo&person=${person}&place=${location}`)).notes.some(n => n.id === row.id), true);
-  const history = await db.prepare("SELECT photo_before,photo_after FROM wall_note_reviews WHERE note_id=? AND action='approve'").bind(row.id).first<{ photo_before: string; photo_after: string }>(); assert.ok(history?.photo_before.includes("2017-06")); assert.ok(history?.photo_after.includes("2014-10-25"));
+  const history = await db.prepare("SELECT photo_before,photo_after FROM wall_note_reviews WHERE note_id=? AND action='approve'").bind(row.id).first<{ photo_before: string; photo_after: string }>(); assert.ok(history?.photo_before.includes("2017-06")); assert.ok(history?.photo_after.includes("2014-10-25")); assert.equal(JSON.parse(history!.photo_after).dateEvidence.selected, "entered");
   assert.equal((await review(row.id, "hide", 2)).status, 200); assert.equal((await image()).status, 404); assert.equal((await reviewImage()).status, 200);
 });
 

@@ -67,6 +67,7 @@ function Photo({ scrap, index, open }: { scrap: Scrap; index: number; open: (src
           <span className="wall-note-message">{note.message}</span>
           {scrap.credit && <span className="wall-photo-credit">Shared by {scrap.credit}</span>}
           <span className="wall-note-details">
+            {note.people && <span><span className="wall-detail-label">people</span><span className="wall-detail-value">{note.people}</span></span>}
             <span><span className="wall-detail-label">date</span><span className="wall-detail-value">{note.date || <span className="wall-blank" aria-label="Date not yet added">&nbsp;</span>}</span></span>
             <span><span className="wall-detail-label">location</span><span className="wall-detail-value">{note.location || <span className="wall-blank" aria-label="Location not yet added">&nbsp;</span>}</span></span>
           </span>
@@ -189,7 +190,7 @@ export default function PhotoWall() {
   const contributedPhotos: Scrap[] = notes.filter(note => note.photo).map(note => {
     const p = note.photo!;
     const title = p.caption || p.people.map(person => person.label).join(", ") || `A photograph shared by ${note.name}`;
-    return { src: p.src, title, credit: note.name, note: { message: note.body, date: formatMemoryDate(p.takenOn), location: p.place?.label || "", width: p.width, height: p.height }, meta: { id: note.id, kind: "photo", caption: title, message: note.body, width: p.width, height: p.height, takenOn: p.takenOn, peopleIds: p.people.map(person => person.id), placeId: p.place?.id } };
+    return { src: p.src, title, credit: note.name, note: { message: note.body, people: p.people.map(person => person.label).join(", "), date: formatMemoryDate(p.takenOn), location: p.place?.label || "", width: p.width, height: p.height }, meta: { id: note.id, kind: "photo", caption: title, message: note.body, width: p.width, height: p.height, takenOn: p.takenOn, peopleIds: p.people.map(person => person.id), placeId: p.place?.id } };
   });
   // The event photograph opens the wall; each photograph appears once.
   const first = photos.find(photo => photo.src === initialMemorial.portrait);

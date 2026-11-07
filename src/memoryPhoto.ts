@@ -1,13 +1,14 @@
+import { chosenPhotoDate, type DateEvidence } from "./photoDateChoice.ts";
 import { dateBounds, type MemoryDate, type Person, type Place } from "./memoryMetadata.ts";
 
 export const memoryPolicyVersion = "2026-11-07";
 export const maxPhotoBytes = 10 * 1024 * 1024;
 export type PhotoPerson = { id: string; label: string };
 export type MemoryCatalog = { people: Record<string, Person>; places: Record<string, Place> };
-export type PhotoDetails = { caption: string; takenOn?: MemoryDate; people: PhotoPerson[]; place?: { id: string; label: string; parentId?: string } };
+export type PhotoDetails = { caption: string; takenOn?: MemoryDate; people: PhotoPerson[]; place?: { id: string; label: string; parentId?: string }; dateEvidence?: DateEvidence };
 export type MemoryPhoto = PhotoDetails & { src: string; width: number; height: number };
 export type StoredPhoto = PhotoDetails & { key: string; width: number; height: number };
-export type PhotoDraft = { caption: string; date: string; dateSource: "camera" | "family"; peopleIds: string[]; otherPeople: string; placeId: string; location: string };
+export type PhotoDraft = { caption: string; date: string; dateSource: "camera" | "family"; peopleIds: string[]; otherPeople: string; placeId: string; location: string; dateEvidence?: DateEvidence };
 export const emptyPhotoDraft: PhotoDraft = { caption: "", date: "", dateSource: "family", peopleIds: [], otherPeople: "", placeId: "", location: "" };
 const control = /[\u0000-\u001f\u007f]/;
 export function photoDraft(photo: PhotoDetails, catalog: MemoryCatalog): PhotoDraft {
@@ -28,6 +29,15 @@ export async function validatePhotoDraft(value: unknown, catalog: MemoryCatalog)
   const v = value as Record<string, unknown>;
   if (["caption", "date", "otherPeople", "placeId", "location"].some(k => typeof v[k] !== "string") || !Array.isArray(v.peopleIds) || v.peopleIds.length > 20 || v.peopleIds.some(id => typeof id !== "string" || !catalog.people[id]) || !["camera", "family"].includes(String(v.dateSource))) return null;
   const draft = v as PhotoDraft;
+  let dateEvidence: DateEvidence | undefined;
+  if (v.dateEvidence !== undefined) {
+    if (!v.dateEvidence || typeof v.dateEvidence !== "object") return null;
+    const evidence = v.dateEvidence as Record<string, unknown>;
+    if (!["camera", "entered", "unknown"].includes(String(evidence.selected)) || ["cameraDate", "enteredDate"].some(k => evidence[k] !== undefined && typeof evidence[k] !== "string")) return null;
+    const confirmed = chosenPhotoDate(String(evidence.cameraDate || ""), String(evidence.enteredDate || ""), evidence.selected as DateEvidence["selected"]);
+    if (!confirmed || confirmed.date !== draft.date || confirmed.dateSource !== draft.dateSource) return null;
+    dateEvidence = confirmed.dateEvidence;
+  }
   const caption = draft.caption.trim(), location = draft.location.trim();
   if (caption.length > 180 || location.length > 120 || draft.otherPeople.length > 600 || control.test(caption + location + draft.otherPeople) || (draft.placeId && !catalog.places[draft.placeId])) return null;
   const takenOn = rememberedDate(draft.date, draft.dateSource);
@@ -42,7 +52,7 @@ export async function validatePhotoDraft(value: unknown, catalog: MemoryCatalog)
   }
   const known = catalog.places[draft.placeId];
   const place = known ? { id: known.id, label: known.label, ...(known.parentId ? { parentId: known.parentId } : {}) } : location ? { id: await labelId("place", location), label: location } : undefined;
-  return { caption, ...(takenOn ? { takenOn } : {}), people, ...(place ? { place } : {}) };
+  return { caption, ...(dateEvidence ? { dateEvidence } : {}), ...(takenOn ? { takenOn } : {}), people, ...(place ? { place } : {}) };
 }
 export function readStoredPhoto(value: string | null | undefined): StoredPhoto | undefined {
   if (!value) return undefined;
@@ -50,6 +60,6 @@ export function readStoredPhoto(value: string | null | undefined): StoredPhoto |
 }
 export function publicPhoto(photo: StoredPhoto | undefined, id: string, privateView = false): MemoryPhoto | undefined {
   if (!photo) return undefined;
-  const { key: _key, ...details } = photo;
-  return { ...details, src: privateView ? `/family/api/notes/${id}/photo` : `/api/photos/${id}` };
+  const { key: _key, dateEvidence, ...details } = photo;
+  return { ...details, ...(privateView && dateEvidence ? { dateEvidence } : {}), src: privateView ? `/family/api/notes/${id}/photo` : `/api/photos/${id}` };
 }

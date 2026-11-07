@@ -54,3 +54,9 @@ For a local Worker preview, use a separate local database and local-only secrets
 ## Checks
 
 `npm test` exercises SQLite persistence, pending privacy, signed reviewer identities, wrong audiences, expiry, forged tokens, unauthorized reviewers, CSRF, simulated verification failures and replay, concurrent decisions, approval history, and public date pagination. Production verification also needs a real browser submission and a login to an allowed review inbox. The owner must complete emailed sign-in codes; application code never reads the review inbox.
+
+## Memory intake and notification
+
+Sharing starts with a note/photo choice. A photograph keeps its optional note. Visitors enter or select people and a location, explicitly choose a camera date, an entered date, or unknown, and preview the front and back before **Share to wall**. Original candidate dates and their choice stay private in `dateEvidence`; only the approved capture date appears publicly. The family can see both candidates while reviewing.
+
+For email notifications, onboard a sending domain in Cloudflare Email Service, configure the restricted `FAMILY_EMAIL` send binding, and set `NOTIFICATION_FROM` and `NOTIFICATION_REVIEW_URL`. The recipients are the private `MODERATOR_EMAILS` allowlist. Email contains only a secure review link, with no contributor content or attachments. The confirmation says the family was notified only after the email service accepts the message. If email fails, the saved memory remains in the private queue and the confirmation says it was sent for review; structured logs record the notification failure. Inbox delivery is controlled by the receiving mail provider.

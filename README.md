@@ -58,3 +58,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and content guidelines, a
 Each memory accepts one optional photograph, up to 10 MB (JPEG, PNG, WebP, or HEIC). Words are optional when a photograph is attached. Photo details are optional; the family can correct them before approval. Contact email is private and optional.
 
 Before deploying uploads, create a private R2 bucket with `npx wrangler r2 bucket create memorial-memory-photos`, set its name in `wrangler.jsonc`, and keep public bucket access disabled. The `IMAGES` binding processes photographs before storage; check your Cloudflare Images transformation allowance. Apply all D1 migrations, including `0003_memory_photos.sql`. Back up R2 separately alongside D1. See `MODERATION.md` for approval and retention behavior.
+
+## Memory intake and notification
+
+Sharing starts with a note/photo choice. A photograph keeps its optional note. Visitors enter or select people and a location, explicitly choose a camera date, an entered date, or unknown, and preview the front and back before **Share to wall**. Original candidate dates and their choice stay private in `dateEvidence`; only the approved capture date appears publicly. The family can see both candidates while reviewing.
+
+For email notifications, onboard a sending domain in Cloudflare Email Service, configure the restricted `FAMILY_EMAIL` send binding, and set `NOTIFICATION_FROM` and `NOTIFICATION_REVIEW_URL`. The recipients are the private `MODERATOR_EMAILS` allowlist. Email contains only a secure review link, with no contributor content or attachments. The confirmation says the family was notified only after the email service accepts the message. If email fails, the saved memory remains in the private queue and the confirmation says it was sent for review; structured logs record the notification failure. Inbox delivery is controlled by the receiving mail provider.
