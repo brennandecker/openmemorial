@@ -189,7 +189,7 @@ export default function PhotoWall() {
   const videos: Scrap[] = (initialMemorial.videos || []).map(v => ({ src: v.src, title: v.title, poster: v.poster, video: true }));
   const contributedPhotos: Scrap[] = notes.filter(note => note.photo).map(note => {
     const p = note.photo!;
-    const title = p.caption || p.people.map(person => person.label).join(", ") || `A photograph shared by ${note.name}`;
+    const title = p.people.map(person => person.label).join(", ") || p.caption || `A photograph shared by ${note.name}`;
     return { src: p.src, title, credit: note.name, note: { message: note.body, people: p.people.map(person => person.label).join(", "), date: formatMemoryDate(p.takenOn), location: p.place?.label || "", width: p.width, height: p.height }, meta: { id: note.id, kind: "photo", caption: title, message: note.body, width: p.width, height: p.height, takenOn: p.takenOn, peopleIds: p.people.map(person => person.id), placeId: p.place?.id } };
   });
   // The event photograph opens the wall; each photograph appears once.

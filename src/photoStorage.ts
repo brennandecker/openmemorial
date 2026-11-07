@@ -5,10 +5,10 @@ export async function memoryCatalog(env: Pick<CloudflareEnv, "NOTES">): Promise<
   const catalog: MemoryCatalog = { people: { ...people }, places: { ...places } };
   const [persons, locations] = await env.NOTES.batch<Record<string, unknown>>([
     env.NOTES.prepare("SELECT DISTINCT json_extract(p.value,'$.id') AS id, json_extract(p.value,'$.label') AS label FROM wall_notes n, json_each(n.photo_json,'$.people') p WHERE n.status='approved' AND n.hidden=0 LIMIT 500"),
-    env.NOTES.prepare("SELECT DISTINCT json_extract(photo_json,'$.place.id') AS id,json_extract(photo_json,'$.place.label') AS label,json_extract(photo_json,'$.place.parentId') AS parentId FROM wall_notes WHERE status='approved' AND hidden=0 AND photo_json IS NOT NULL LIMIT 500"),
+    env.NOTES.prepare("SELECT DISTINCT json_extract(photo_json,'$.place.id') AS id,json_extract(photo_json,'$.place.label') AS label,json_extract(photo_json,'$.place.parentId') AS parentId,json_extract(photo_json,'$.place.city') AS city,json_extract(photo_json,'$.place.state') AS state,json_extract(photo_json,'$.place.country') AS country FROM wall_notes WHERE status='approved' AND hidden=0 AND photo_json IS NOT NULL LIMIT 500"),
   ]);
   for (const p of persons.results) if (typeof p.id === "string" && typeof p.label === "string" && !catalog.people[p.id]) catalog.people[p.id] = { id: p.id, name: p.label };
-  for (const p of locations.results) if (typeof p.id === "string" && typeof p.label === "string" && !catalog.places[p.id]) catalog.places[p.id] = { id: p.id, label: p.label, ...(typeof p.parentId === "string" ? { parentId: p.parentId } : {}) };
+  for (const p of locations.results) if (typeof p.id === "string" && typeof p.label === "string") catalog.places[p.id] = { ...(catalog.places[p.id] || {}), id: p.id, label: p.label, ...(typeof p.parentId === "string" ? { parentId: p.parentId } : {}), ...(typeof p.city === "string" ? { city: p.city } : {}), ...(typeof p.state === "string" ? { state: p.state } : {}), ...(typeof p.country === "string" ? { country: p.country } : {}) };
   return catalog;
 }
 

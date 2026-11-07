@@ -1,7 +1,7 @@
 /** A remembered date, with its actual precision and where it came from. */
 export type MemoryDate = { value: string; precision: "year" | "month" | "day"; source: "family" | "camera"; approximate?: boolean };
 export type Person = { id: string; name: string; relationship?: string; inMemoriam?: boolean };
-export type Place = { id: string; label: string; parentId?: string };
+export type Place = { id: string; label: string; parentId?: string; city?: string; state?: string; country?: string };
 export type MediaMetadata = {
   id: string; kind: "photo" | "video"; caption: string;
   width: number; height: number; message: string;

@@ -4,7 +4,7 @@ import { wallTimeZone } from "./wallSettings";
 import { initialMemorial } from "./memorial";
 import type { WallNote } from "./wallNotes";
 import { SubmissionCheck } from "./SubmissionCheck";
-import { emptyPhotoDraft, maxPhotoBytes, memoryPolicyVersion, rememberedDate, type MemoryCatalog, type PhotoDraft } from "./memoryPhoto";
+import { emptyPhotoDraft, photoFrontNames, photoLocationLabel, maxPhotoBytes, memoryPolicyVersion, rememberedDate, type MemoryCatalog, type PhotoDraft } from "./memoryPhoto";
 import { cameraDateFromMetadata, chosenPhotoDate, type DateChoice } from "./photoDateChoice";
 import { formatMemoryDate } from "./memoryMetadata";
 import PhotoDetailsForm, { PhotoDateFields } from "./PhotoDetailsForm";
@@ -84,9 +84,9 @@ export function LeaveNote({ submitted, close, catalog }: { submitted: () => void
       setToken(""); setVerificationAttempt(value => value + 1);
     } finally { setBusy(false); }
   }
-  const people = [...photoDetails.peopleIds.map(id => catalog.people[id]).filter(Boolean).map(person => [person.relationship, person.name].filter(Boolean).join(" ")), ...photoDetails.otherPeople.split(",").map(value => value.trim()).filter(Boolean)];
-  const caption = photoDetails.caption.trim() || people.join(", ") || `A photograph shared by ${name.trim()}`;
-  const location = catalog.places[photoDetails.placeId]?.label || photoDetails.location.trim();
+  const people = photoFrontNames(photoDetails, catalog);
+  const caption = people.join(", ") || photoDetails.caption.trim() || `A photograph shared by ${name.trim()}`;
+  const location = photoLocationLabel(photoDetails, catalog);
   const shownDate = confirmedDate?.date ? formatMemoryDate(rememberedDate(confirmedDate.date, confirmedDate.dateSource)) : "Date unknown";
   return <dialog ref={dialog} className={`note-dialog memory-intake memory-stage-${stage}`} aria-labelledby="note-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) close(); }} onClick={event => { if (event.target === event.currentTarget && !busy) close(); }}>
     <div className="note-dialog-heading"><h2 id="note-dialog-title" tabIndex={-1}>{stage === "preview" && !sent ? "Preview your memory" : "Share a memory"}</h2><button aria-label="Close note" onClick={close} disabled={busy}>×</button></div>
@@ -107,12 +107,12 @@ export function LeaveNote({ submitted, close, catalog }: { submitted: () => void
           </fieldset>
         </>}
       </>}
-      <label htmlFor="note-body">{isPhoto ? "A note about this photo (optional)" : "Your memory"}</label><textarea id="note-body" name="body" rows={4} placeholder={isPhoto ? "What would you like to remember about this moment?" : "What would you like to remember?"} maxLength={1000} value={body} onChange={event => setBody(event.target.value)} required={!isPhoto} />
+      <label htmlFor="note-body">{isPhoto ? "Note on the back (optional)" : "Your memory"}</label><textarea id="note-body" name="body" rows={4} placeholder={isPhoto ? "Write a memory for the back of this photo…" : "What would you like to remember?"} maxLength={1000} value={body} onChange={event => setBody(event.target.value)} required={!isPhoto} />{isPhoto && <p className="photo-field-hint">This note appears on the back of the photo. People’s names appear on the front.</p>}
       <label htmlFor="note-email">Email <span>(optional, kept private)</span></label><input id="note-email" name="email" type="email" autoComplete="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)} /><p className="photo-field-hint">So the family can contact you with questions.</p>
       {error && <p className="note-error" role="alert">{error}</p>}<button className="note-submit" type="submit" disabled={isPhoto && (!photo || readingDate)}>Preview memory</button>
     </form> : <form onSubmit={share}>
       <button className="memory-step-back" type="button" disabled={busy} onClick={() => { setError(""); setStage("compose"); }}>← Edit your memory</button>
-      {isPhoto ? <div className="memory-card-preview"><section aria-label="Front of your photograph"><h3>Front</h3><figure className="memory-preview-front">{preview && !previewError ? <img src={preview} alt={caption} /> : <div className="memory-preview-placeholder">Your photograph</div>}<figcaption>{caption}<span aria-hidden="true">…</span></figcaption></figure></section><section aria-label="Back of your photograph"><h3>Back</h3><div className="memory-preview-back"><h4>{caption}</h4>{body.trim() && <p>{body}</p>}<p className="memory-preview-credit">Shared by {name.trim()}</p><dl>{people.length > 0 && <><dt>People</dt><dd>{people.join(", ")}</dd></>}<dt>Date</dt><dd>{shownDate}</dd><dt>Location</dt><dd>{location || "Location unknown"}</dd></dl></div></section></div> : <div className="memory-preview-note"><WrittenNote note={{ id: "preview", name: name.trim(), body: body.trim(), createdAt: new Date().toISOString(), pinned: false }} /></div>}
+      {isPhoto ? <div className="memory-card-preview"><section aria-label="Front of your photograph"><h3>Front · people’s names</h3><figure className="memory-preview-front">{preview && !previewError ? <img src={preview} alt={caption} /> : <div className="memory-preview-placeholder">Your photograph</div>}<figcaption>{caption}<span aria-hidden="true">…</span></figcaption></figure></section><section aria-label="Back of your photograph"><h3>Back · note and details</h3><div className="memory-preview-back"><h4>{caption}</h4>{body.trim() && <p>{body}</p>}<p className="memory-preview-credit">Shared by {name.trim()}</p><dl>{people.length > 0 && <><dt>People</dt><dd>{people.join(", ")}</dd></>}<dt>Date</dt><dd>{shownDate}</dd><dt>Location</dt><dd>{location || "Location unknown"}</dd></dl></div></section></div> : <div className="memory-preview-note"><WrittenNote note={{ id: "preview", name: name.trim(), body: body.trim(), createdAt: new Date().toISOString(), pinned: false }} /></div>}
       <input className="note-honey" aria-hidden="true" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} />
       <p className="note-public">Your memory will stay private until the family approves it. Your name will appear with it. By sharing, you agree to the <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Use</a>. Read our <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
       <label className="memory-consent"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} required disabled={busy} /><span>I have permission to share {isPhoto ? "this photograph and any note" : "these words"} and have them displayed on this memorial.</span></label>
