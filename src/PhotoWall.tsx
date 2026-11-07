@@ -5,16 +5,17 @@ import { formatDate, initialMemorial, photoCaption } from "./memorial";
 import { headerPhotograph, photoNotes, mediaMetadata, people, places, type PhotoNote } from "./photoWallData";
 import { firstWallNotes, type WallNote } from "./wallNotes";
 import { LeaveNote, WrittenNote } from "./NoteCards";
-import { ageLabel, dateMatches, emptyFilters, mediaMatches, filterBounds, hasFilters, type WallFilters as Filters } from "./memoryMetadata";
+import { ageLabel, dateMatches, emptyFilters, mediaMatches, filterBounds, hasFilters, formatMemoryDate, type MediaMetadata, type WallFilters as Filters } from "./memoryMetadata";
+import type { MemoryCatalog } from "./memoryPhoto";
 import { postedDay } from "./wallSettings";
 import { WallFilters } from "./WallFilters";
 import "./photo-wall.css";
 
-type Scrap = { src: string; title: string; poster?: string; video?: boolean };
+type Scrap = { src: string; title: string; poster?: string; video?: boolean; note?: PhotoNote; meta?: MediaMetadata; credit?: string };
 const emptyNote: PhotoNote = { message: "", date: "", location: "", width: 4, height: 3 };
 
-function MemorialDove({ src }: { src: string }) {
-  const remembered = (mediaMetadata[src]?.peopleIds || []).map(id => people[id]).filter(person => person?.inMemoriam);
+function MemorialDove({ src, personIds }: { src: string; personIds?: string[] }) {
+  const remembered = (personIds || mediaMetadata[src]?.peopleIds || []).map(id => people[id]).filter(person => person?.inMemoriam);
   if (!remembered.length) return null;
   return <svg className="wall-memorial-dove" viewBox="0 0 40 36" role="img" aria-label={`In loving memory of ${remembered.map(person => person.name).join(" and ")}`} fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round">
     <path d="M27 17C22 12 19 5 10 3c1 5 4 10 8 14-5-1-9-4-14-7 0 6 4 12 11 15l-6 6 10-2c6 1 11-2 12-7l5-3-5-1c-1-5-7-5-8-1" />
@@ -23,9 +24,9 @@ function MemorialDove({ src }: { src: string }) {
   </svg>;
 }
 
-function PhotoName({ src, title }: { src: string; title: string }) {
+function PhotoName({ src, title, personIds }: { src: string; title: string; personIds?: string[] }) {
   const split = title.lastIndexOf(" ");
-  return <>{title.slice(0, split + 1)}<span className="wall-name-ending">{title.slice(split + 1)}<MemorialDove src={src} /></span></>;
+  return <>{title.slice(0, split + 1)}<span className="wall-name-ending">{title.slice(split + 1)}<MemorialDove src={src} personIds={personIds} /></span></>;
 }
 
 function Photo({ scrap, index, open }: { scrap: Scrap; index: number; open: (src: string) => void }) {
@@ -37,8 +38,8 @@ function Photo({ scrap, index, open }: { scrap: Scrap; index: number; open: (src
   useEffect(() => {
     if (interacted.current) (turned ? backButton : frontButton).current?.focus({ preventScroll: true });
   }, [turned]);
-  const note = photoNotes[scrap.src] || emptyNote;
-  const meta = mediaMetadata[scrap.src];
+  const note = scrap.note || photoNotes[scrap.src] || emptyNote;
+  const meta = scrap.meta || mediaMetadata[scrap.src];
   const age = ageLabel(meta?.takenOn, initialMemorial.birth, initialMemorial.death);
   const era = [meta?.takenOn?.value.slice(0, 4), age].filter(Boolean).join(" · ");
   const flip = () => { interacted.current = true; video.current?.pause(); setTurned(value => !value); };
@@ -56,7 +57,7 @@ function Photo({ scrap, index, open }: { scrap: Scrap; index: number; open: (src
           <button className="wall-photo-button" onClick={() => open(scrap.src)} aria-label={`Enlarge photograph: ${scrap.title}`}>
             <img src={scrap.src} alt={scrap.title} width={note.width} height={note.height} loading={index < 3 ? "eager" : "lazy"} decoding="async" />
           </button>
-          <div className="wall-turn-label"><button className="wall-front-name wall-name-button" onClick={() => open(scrap.src)}><PhotoName src={scrap.src} title={scrap.title} /></button><button ref={frontButton} className="wall-more" onClick={flip} aria-label={`Show details: ${scrap.title}`} aria-expanded={false}>…</button></div>
+          <div className="wall-turn-label"><button className="wall-front-name wall-name-button" onClick={() => open(scrap.src)}><PhotoName src={scrap.src} title={scrap.title} personIds={meta?.peopleIds} /></button><button ref={frontButton} className="wall-more" onClick={flip} aria-label={`Show details: ${scrap.title}`} aria-expanded={false}>…</button></div>
         </div>}
         {era && <p className="wall-photo-era">{era}</p>}
       </div>
@@ -64,6 +65,7 @@ function Photo({ scrap, index, open }: { scrap: Scrap; index: number; open: (src
         <button ref={backButton} className="wall-return" onClick={flip} aria-label={`Show photograph: ${scrap.title}`} aria-expanded={true}>
           <span className="wall-note-title">{scrap.title}</span>
           <span className="wall-note-message">{note.message}</span>
+          {scrap.credit && <span className="wall-photo-credit">Shared by {scrap.credit}</span>}
           <span className="wall-note-details">
             <span><span className="wall-detail-label">date</span><span className="wall-detail-value">{note.date || <span className="wall-blank" aria-label="Date not yet added">&nbsp;</span>}</span></span>
             <span><span className="wall-detail-label">location</span><span className="wall-detail-value">{note.location || <span className="wall-blank" aria-label="Location not yet added">&nbsp;</span>}</span></span>
@@ -80,8 +82,8 @@ function Lightbox({ photos, index, change, close, startPlaying = false }: { phot
   const [readySrc, setReadySrc] = useState<string | null>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const photo = photos[index];
-  const note = photoNotes[photo.src];
-  const age = ageLabel(mediaMetadata[photo.src]?.takenOn, initialMemorial.birth, initialMemorial.death);
+  const note = photo.note || photoNotes[photo.src];
+  const age = ageLabel((photo.meta || mediaMetadata[photo.src])?.takenOn, initialMemorial.birth, initialMemorial.death);
   const previous = () => change((index - 1 + photos.length) % photos.length);
   const next = () => change((index + 1) % photos.length);
   useEffect(() => {
@@ -128,7 +130,7 @@ function Lightbox({ photos, index, change, close, startPlaying = false }: { phot
     </div>
     <div className="lightbox-caption">
       {photos.length > 1 && <button className="lightbox-nav" onClick={previous} aria-label="Previous photograph">‹</button>}
-      <div aria-live={playing ? "off" : "polite"}><h2 id="wall-lightbox-title"><PhotoName src={photo.src} title={photo.title} /></h2>{(note?.date || note?.location) && <p>{[note.date, age, note.location].filter(Boolean).join(" · ")}</p>}</div>
+      <div aria-live={playing ? "off" : "polite"}><h2 id="wall-lightbox-title"><PhotoName src={photo.src} title={photo.title} personIds={photo.meta?.peopleIds} /></h2>{(note?.date || note?.location) && <p>{[note.date, age, note.location].filter(Boolean).join(" · ")}</p>}{note?.message && <p className="lightbox-memory">{note.message}</p>}{photo.credit && <p>Shared by {photo.credit}</p>}</div>
       {photos.length > 1 && <button className="lightbox-nav" onClick={next} aria-label="Next photograph">›</button>}
     </div>
   </dialog>;
@@ -152,8 +154,12 @@ export default function PhotoWall() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [notesError, setNotesError] = useState(false);
+  const [catalog, setCatalog] = useState<MemoryCatalog>({ people, places });
+  useEffect(() => { const controller = new AbortController(); void fetch("/api/catalog", { signal: controller.signal }).then(response => { if (!response.ok) throw new Error(); return response.json() as Promise<MemoryCatalog>; }).then(result => { if (!controller.signal.aborted) setCatalog(result); }).catch(() => {}); return () => controller.abort(); }, []);
   const notesGeneration = useRef(0);
-  const dateQuery = new URLSearchParams(Object.fromEntries(Object.entries({ year: filters.year === "unknown" ? "" : filters.year, from: filters.from, to: filters.to }).filter(([, value]) => value))).toString();
+  const query = new URLSearchParams(Object.fromEntries(Object.entries({ kind: filters.kind, year: filters.year, from: filters.from, to: filters.to }).filter(([, value]) => value)));
+  filters.people.forEach(id => query.append("person", id)); filters.places.forEach(id => query.append("place", id));
+  const dateQuery = query.toString();
   async function loadNotes(nextPage: number, signal?: AbortSignal, replace = false) {
     const generation = ++notesGeneration.current;
     if (!filterBounds({ year: filters.year === "unknown" ? "" : filters.year, from: filters.from, to: filters.to })) { setNotes([]); setHasMore(false); setNotesError(false); setLoadingNotes(false); return; }
@@ -180,12 +186,17 @@ export default function PhotoWall() {
   }, []);
   const photos: Scrap[] = initialMemorial.photos.map(src => ({ src, title: photoCaption(src) }));
   const videos: Scrap[] = (initialMemorial.videos || []).map(v => ({ src: v.src, title: v.title, poster: v.poster, video: true }));
+  const contributedPhotos: Scrap[] = notes.filter(note => note.photo).map(note => {
+    const p = note.photo!;
+    const title = p.caption || p.people.map(person => person.label).join(", ") || `A photograph shared by ${note.name}`;
+    return { src: p.src, title, credit: note.name, note: { message: note.body, date: formatMemoryDate(p.takenOn), location: p.place?.label || "", width: p.width, height: p.height }, meta: { id: note.id, kind: "photo", caption: title, message: note.body, width: p.width, height: p.height, takenOn: p.takenOn, peopleIds: p.people.map(person => person.id), placeId: p.place?.id } };
+  });
   // The event photograph opens the wall; each photograph appears once.
   const first = photos.find(photo => photo.src === initialMemorial.portrait);
-  const scraps = [...(first ? [first] : []), ...photos.filter(photo => photo !== first), ...videos];
+  const scraps = [...(first ? [first] : []), ...contributedPhotos, ...photos.filter(photo => photo !== first), ...videos];
   const visibleScraps = scraps.filter(scrap => {
-    const media = mediaMetadata[scrap.src] || { id: scrap.src, kind: scrap.video ? "video" as const : "photo" as const, caption: scrap.title, message: "", peopleIds: [], width: 4, height: 3 };
-    return mediaMatches(media, filters, places);
+    const media = scrap.meta || mediaMetadata[scrap.src] || { id: scrap.src, kind: scrap.video ? "video" as const : "photo" as const, caption: scrap.title, message: "", peopleIds: [], width: 4, height: 3 };
+    return mediaMatches(media, filters, catalog.places);
   });
   const lightboxPhotos = visibleScraps.filter(scrap => !scrap.video);
   const openPhoto = (src: string) => { setAutoplayLightbox(false); setLightboxIndex(lightboxPhotos.findIndex(photo => photo.src === src)); };
@@ -193,7 +204,7 @@ export default function PhotoWall() {
   type WallItem = { key: string; scrap: Scrap } | { key: string; note: WallNote };
   const photoItems: WallItem[] = visibleScraps.map(scrap => ({ key: scrap.src, scrap }));
   const notesVisible = (filters.kind === "all" || filters.kind === "note") && !filters.people.length && !filters.places.length;
-  const visibleNotes = notesVisible ? [...firstWallNotes, ...notes].filter(note => dateMatches(note.createdAt ? { value: postedDay(note.createdAt), precision: "day", source: "family" } : undefined, filters)) : [];
+  const visibleNotes = notesVisible ? [...firstWallNotes, ...notes.filter(note => !note.photo)].filter(note => dateMatches(note.createdAt ? { value: postedDay(note.createdAt), precision: "day", source: "family" } : undefined, filters)) : [];
   const birthYear = Number(initialMemorial.birth.slice(0, 4));
   const latestYear = Math.max(Number(initialMemorial.death.slice(0, 4)) || 0, ...Object.values(mediaMetadata).map(media => Number(media.takenOn?.value.slice(0, 4)) || 0), ...notes.map(note => Number(postedDay(note.createdAt).slice(0, 4))));
   const years = Number.isInteger(birthYear) && birthYear > 0 && latestYear >= birthYear && latestYear - birthYear < 200 ? Array.from({ length: latestYear - birthYear + 1 }, (_, index) => birthYear + index) : [...new Set(Object.values(mediaMetadata).map(media => Number(media.takenOn?.value.slice(0, 4))).filter(Boolean))].sort();
@@ -212,7 +223,7 @@ export default function PhotoWall() {
         </div>
         </div>
       </div>
-      <WallFilters value={filters} years={years} share={() => setComposing(true)} canPlay={lightboxPhotos.length > 1} play={() => { setAutoplayLightbox(true); setLightboxIndex(0); }} change={value => { setLightboxIndex(null); setFilters(value); }} />
+      <WallFilters catalog={catalog} value={filters} years={years} share={() => setComposing(true)} canPlay={lightboxPhotos.length > 1} play={() => { setAutoplayLightbox(true); setLightboxIndex(0); }} change={value => { setLightboxIndex(null); setFilters(value); }} />
     </header>
     <div className="wall-filter-status" role="status">{hasFilters(filters) && <>{items.length} {items.length === 1 ? "memory" : "memories"}{hasMore && notesVisible ? " loaded" : ""}</>}</div>
     {filters.year !== "unknown" && !filterBounds(filters) && <p className="wall-filter-error">Choose an end date on or after the start date, within the selected year.</p>}
@@ -223,10 +234,10 @@ export default function PhotoWall() {
       </div>)}
     </section>
     {items.length === 0 && !loadingNotes && <div className="wall-empty"><p>No memories match these filters.</p><button onClick={() => setFilters({ ...emptyFilters })}>Show everything</button></div>}
-    {notesVisible && (hasMore || notesError) && <div className="wall-notes-more">{notesError && <p>Notes couldn’t be loaded.</p>}<button disabled={loadingNotes} onClick={() => void loadNotes(notesError ? page : page + 1)}>{loadingNotes ? "Loading…" : notesError ? "Try again" : "More notes"}</button></div>}
+    {(hasMore || notesError) && <div className="wall-notes-more">{notesError && <p>Memories couldn’t be loaded.</p>}<button disabled={loadingNotes} onClick={() => void loadNotes(notesError ? page : page + 1)}>{loadingNotes ? "Loading…" : notesError ? "Try again" : "More memories"}</button></div>}
     <SiteFooter />
     {lightboxIndex !== null && <Lightbox photos={lightboxPhotos} index={lightboxIndex} change={setLightboxIndex} startPlaying={autoplayLightbox} close={() => setLightboxIndex(null)} />}
     {headerPhotoOpen && headerPhotograph && <Lightbox photos={[headerPhotograph]} index={0} change={() => {}} close={() => setHeaderPhotoOpen(false)} />}
-    {composing && <LeaveNote close={() => setComposing(false)} submitted={() => { setComposing(false); setNoteStatus("Your memory has been sent to the family for approval."); }} />}
+    {composing && <LeaveNote catalog={catalog} close={() => setComposing(false)} submitted={() => { setComposing(false); setNoteStatus("Your memory has been sent to the family for approval."); }} />}
   </main>;
 }

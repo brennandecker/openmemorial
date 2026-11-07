@@ -1,10 +1,10 @@
 import { Menu, MessageSquarePlus, Play, SlidersHorizontal, X } from "lucide-react";
 import { ageRangeLabel, emptyFilters, hasFilters, type WallFilters as Filters } from "./memoryMetadata";
-import { people, places } from "./photoWallData";
+import type { MemoryCatalog } from "./memoryPhoto";
 import { initialMemorial } from "./memorial";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
-export function WallFilters({ value, change, years, share, play, canPlay }: { value: Filters; change: (filters: Filters) => void; years: number[]; share: () => void; play: () => void; canPlay: boolean }) {
+export function WallFilters({ value, change, years, share, play, canPlay, catalog: { people, places } }: { value: Filters; change: (filters: Filters) => void; years: number[]; share: () => void; play: () => void; canPlay: boolean; catalog: MemoryCatalog }) {
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   const menuToggle = useRef<HTMLElement>(null);

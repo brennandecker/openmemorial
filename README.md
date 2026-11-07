@@ -52,3 +52,9 @@ This starter includes no family photographs, names, dates, or personal tributes.
 ## Contributing and security
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and content guidelines, and [SECURITY.md](SECURITY.md) for private vulnerability reporting. The included GitHub Actions workflow runs tests and builds; it does not deploy your memorial or need production secrets.
+
+## Visitor photographs
+
+Each memory accepts one optional photograph, up to 10 MB (JPEG, PNG, WebP, or HEIC). Words are optional when a photograph is attached. Photo details are optional; the family can correct them before approval. Contact email is private and optional.
+
+Before deploying uploads, create a private R2 bucket with `npx wrangler r2 bucket create memorial-memory-photos`, set its name in `wrangler.jsonc`, and keep public bucket access disabled. The `IMAGES` binding processes photographs before storage; check your Cloudflare Images transformation allowance. Apply all D1 migrations, including `0003_memory_photos.sql`. Back up R2 separately alongside D1. See `MODERATION.md` for approval and retention behavior.

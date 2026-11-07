@@ -24,6 +24,7 @@ export default function ReviewHistory({ id }: { id: string }) {
   return <div className="review-history-content">
     {loading ? <p role="status">Loading history…</p> : error ? <div role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>Try again</button></div> : events.length === 0 ? <p>No decisions yet.</p> : <ol>{events.map(event => <li key={event.id}>
       <strong>{event.action === "approve" && ["declined", "hidden"].includes(event.previousStatus) ? "Republished" : descriptions[event.action]}</strong>
+      {!!event.detailsChanged && <span>Photo details corrected before publication</span>}
       <span>{event.reviewer}</span>
       <time dateTime={event.createdAt}>{new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: wallTimeZone }).format(new Date(event.createdAt))}</time>
     </li>)}</ol>}

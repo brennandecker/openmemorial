@@ -47,5 +47,14 @@
       "ACCESS_AUD",
       "MODERATOR_EMAILS"
     ]
+  },
+  "r2_buckets": [
+    {
+      "binding": "MEMORY_PHOTOS",
+      "bucket_name": "memorial-memory-photos"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
   }
 }

@@ -4,6 +4,10 @@ import { wallTimeZone } from "./wallSettings";
 import type { ReviewNote, ReviewStatus } from "./reviewApi";
 import ReviewHistory from "./ReviewHistory";
 import SiteFooter from "./SiteFooter";
+import PhotoDetailsForm from "./PhotoDetailsForm";
+import { photoDraft, type MemoryCatalog, type PhotoDraft } from "./memoryPhoto";
+import { people, places } from "./photoWallData";
+import { formatMemoryDate } from "./memoryMetadata";
 import "./photo-wall.css";
 import "./family-review.css";
 
@@ -18,6 +22,9 @@ export default function FamilyReview() {
   const [error, setError] = useState(""); const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0); const [signIn, setSignIn] = useState(false);
   const [historyId, setHistoryId] = useState("");
+  const [catalog, setCatalog] = useState<MemoryCatalog>({ people, places });
+  const [photoEdits, setPhotoEdits] = useState<Record<string, { version: number; draft: PhotoDraft }>>({});
+  useEffect(() => { const controller = new AbortController(); void fetch("/api/catalog", { signal: controller.signal }).then(response => { if (!response.ok) throw new Error(); return response.json() as Promise<MemoryCatalog>; }).then(result => { if (!controller.signal.aborted) setCatalog(result); }).catch(() => {}); return () => controller.abort(); }, []);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError("");
     void (async () => {
@@ -33,7 +40,8 @@ export default function FamilyReview() {
   async function review(note: ReviewNote, action: "approve" | "decline" | "hide") {
     if (busy) return; setBusy(note.id); setError(""); setNotice("");
     try {
-      const response = await fetch(`/family/api/notes/${note.id}/review`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action, version: note.version }) });
+      const edited = photoEdits[note.id];
+      const response = await fetch(`/family/api/notes/${note.id}/review`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action, version: note.version, ...(action === "approve" && note.photo ? { photo: edited?.version === note.version ? edited.draft : photoDraft(note.photo, catalog) } : {}) }) });
       if (response.status === 401 || response.status === 403 || response.redirected) { setSignIn(true); throw new Error("Please sign in again to continue reviewing."); }
       const result = await response.json() as { error?: string };
       if (!response.ok) { if (response.status === 409) setRevision(value => value + 1); throw new Error(result.error || "The review couldn’t be saved."); }
@@ -50,7 +58,9 @@ export default function FamilyReview() {
     {notice && <p className="review-notice" role="status">{notice}</p>}
     {error && <div className="review-error" role="alert"><p>{error}</p>{signIn ? <a href="/family">Sign in again</a> : <button onClick={() => setRevision(value => value + 1)}>Try again</button>}</div>}
     {loading ? <p role="status">Loading memories…</p> : !error && notes.length === 0 ? <p className="review-empty">{status === "pending" ? "No memories are waiting for approval." : `No ${labels[status].toLowerCase()} memories.`}</p> : <section className="review-list" aria-label={`${labels[status]} memories`}>{notes.map(note => <article key={note.id}>
-      <p className="review-message">{note.body}</p><p className="review-author">— {note.name}</p><p className="review-date">Submitted {date(note.createdAt)}</p>
+      {note.photo && <div className="review-photograph"><img src={note.photo.src} alt={note.photo.caption || "Submitted photograph"} width={note.photo.width} height={note.photo.height} loading="lazy" /><p>{[note.photo.caption, formatMemoryDate(note.photo.takenOn), note.photo.place?.label].filter(Boolean).join(" · ")}</p>{note.status !== "approved" && <details className="photo-details-disclosure"><summary>Review photo details</summary><PhotoDetailsForm catalog={catalog} disabled={!!busy} value={photoEdits[note.id]?.version === note.version ? photoEdits[note.id].draft : photoDraft(note.photo, catalog)} change={draft => setPhotoEdits(current => ({ ...current, [note.id]: { version: note.version, draft } }))} /><p className="photo-field-hint">Corrections are saved when you approve or publish this memory.</p></details>}</div>}
+      {note.body && <p className="review-message">{note.body}</p>}<p className="review-author">— {note.name}</p><p className="review-date">Submitted {date(note.createdAt)}</p>
+      {note.email && <p className="review-date">Private contact: <a href={`mailto:${encodeURIComponent(note.email)}`}>{note.email}</a></p>}
       {note.reviewedAt && <p className="review-date">Last reviewed by {note.reviewedBy} · {date(note.reviewedAt)}</p>}
       <details className="review-history" open={historyId === note.id} onToggle={event => { const open = event.currentTarget.open; setHistoryId(value => open ? note.id : value === note.id ? "" : value); }}><summary>Review history</summary>{historyId === note.id && <ReviewHistory key={`${note.id}-${note.version}`} id={note.id} />}</details>
       <div className="review-actions">{note.status !== "approved" && <button className="review-approve" disabled={!!busy} onClick={() => void review(note, "approve")}>{busy === note.id ? "Saving…" : note.status === "pending" ? "Approve" : "Publish"}</button>}{note.status === "pending" && <button disabled={!!busy} onClick={() => void review(note, "decline")}>Decline</button>}{note.status === "approved" && <button disabled={!!busy} onClick={() => void review(note, "hide")}>{busy === note.id ? "Saving…" : "Hide from wall"}</button>}</div>

@@ -1,6 +1,16 @@
 # Family approval
 
-Anyone may submit a plain-text memory. New records always enter `pending`, remain absent from the public API, and require one authorized reviewer to publish them. The curated opening verse is source content rather than a visitor submission.
+Anyone may submit a memory with text, one photograph, or both. New records always enter `pending`, remain absent from the public API, and require one authorized reviewer to publish them. The curated opening verse is source content rather than a visitor submission.
+
+## One optional photograph
+
+The form accepts words, one photograph, or both. The contributor provides a display name and permission acknowledgment; email is optional and private. Each photo can have a caption, a capture date with year/month/day precision, explicitly identified people, and a city/state location. Camera dates are suggested locally with `exifr`; GPS is not read. Corrections change the date source from camera to family.
+
+Configure `MEMORY_PHOTOS` as a private R2 bucket and `IMAGES` as a Cloudflare Images binding. Keep the bucket's r2.dev URL disabled and do not attach a public custom domain. The Worker accepts at most one file and 10 MB, verifies the actual image with Images, rejects SVG and unsupported formats, caps input dimensions at 40 megapixels, and re-encodes to a JPEG up to 2560 pixels per side. It removes EXIF, XMP, IPTC and comments; the original is not stored. A failed database insert cleans up its unreferenced processed object.
+
+`/api/photos/:id` checks the database's current approval and visibility on every request. `/family/api/notes/:id/photo` requires the independently verified family identity. Both return `private, no-store`; image URLs never point directly to R2. Hiding or declining a memory also denies public image access. Its image remains recoverable alongside its record for at least 60 days, with no automatic purge. Family photo-detail corrections are saved with the approval transaction, version check, and before/after audit snapshots. Optional contact emails never enter public notes or catalog responses.
+
+Apply migration `0003_memory_photos.sql` before deploying. It preserves existing records and their visibility. `memory_text` contains the actual contributor text, including an empty string for photo-only contributions; legacy `body` remains nonempty for compatibility with the original schema. Photos filter by capture date and text notes by posting date, before pagination. The public people/location catalog includes only approved submissions and curated source tags.
 
 ## Private review
 
@@ -29,7 +39,7 @@ To replace a reviewer, update both the Access policy and `MODERATOR_EMAILS`. The
 
 Register a managed Turnstile widget for your memorial hostname. The form loads it only when sharing a memory. The server calls Siteverify and requires success, the `share_memory` action, and the exact request hostname. Verification fails closed. Tokens are single-use. A failed submission retains the visitor's draft and refreshes verification. Existing same-origin checks, bounded streamed requests, plain-text rendering, honeypot, and network rate limit remain active. The database does not store visitor IP addresses.
 
-Apply both D1 migrations before deploying the new handler:
+Apply all D1 migrations before deploying the new handler:
 
 ```sh
 npx wrangler d1 migrations apply NOTES --remote
