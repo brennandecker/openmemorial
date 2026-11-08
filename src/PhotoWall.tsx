@@ -144,6 +144,8 @@ function columnsForViewport() {
 }
 
 export default function PhotoWall() {
+  const [capabilities,setCapabilities] = useState({shareMemory:false,photoUploads:false});
+  useEffect(()=>{const controller=new AbortController();void fetch("/api/config",{signal:controller.signal}).then(async response=>{if(!response.ok)throw new Error();const config=await response.json() as {features?:{shareMemory?:boolean;photoUploads?:boolean}};if(!controller.signal.aborted)setCapabilities({shareMemory:config.features?.shareMemory===true,photoUploads:config.features?.photoUploads===true});}).catch(()=>{});return()=>controller.abort();},[]);
   const [curated,setCurated] = useState<CuratedItem[] | null>(null);
   const [curatedError,setCuratedError] = useState(false);
   const [curatedRetry,setCuratedRetry] = useState(0);
@@ -231,7 +233,7 @@ export default function PhotoWall() {
         </div>
         </div>
       </div>
-      <WallFilters catalog={catalog} value={filters} years={years} share={() => setComposing(true)} canPlay={lightboxPhotos.length > 1} play={() => { setAutoplayLightbox(true); setLightboxIndex(0); }} change={value => { setLightboxIndex(null); setFilters(value); }} />
+      <WallFilters allowSharing={capabilities.shareMemory} catalog={catalog} value={filters} years={years} share={() => setComposing(true)} canPlay={lightboxPhotos.length > 1} play={() => { setAutoplayLightbox(true); setLightboxIndex(0); }} change={value => { setLightboxIndex(null); setFilters(value); }} />
     </header>
     <div className="wall-filter-status" role="status">{hasFilters(filters) && <>{items.length} {items.length === 1 ? "memory" : "memories"}{hasMore && notesVisible ? " loaded" : ""}</>}</div>
     {filters.year !== "unknown" && !filterBounds(filters) && <p className="wall-filter-error">Choose an end date on or after the start date, within the selected year.</p>}
@@ -248,6 +250,6 @@ export default function PhotoWall() {
     <SiteFooter />
     {lightboxIndex !== null && <Lightbox photos={lightboxPhotos} index={lightboxIndex} change={setLightboxIndex} startPlaying={autoplayLightbox} close={() => setLightboxIndex(null)} />}
     {headerPhotoOpen && headerPhotograph && <Lightbox photos={[headerPhotograph]} index={0} change={() => {}} close={() => setHeaderPhotoOpen(false)} />}
-    {composing && <LeaveNote catalog={catalog} close={() => setComposing(false)} submitted={() => { setComposing(false); setNoteStatus("Your memory has been sent to the family for approval."); }} />}
+    {composing && <LeaveNote allowPhoto={capabilities.photoUploads} catalog={catalog} close={() => setComposing(false)} submitted={() => { setComposing(false); setNoteStatus("Your memory has been sent to the family for approval."); }} />}
   </main>;
 }

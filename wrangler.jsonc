@@ -1,5 +1,5 @@
 {
-  "name": "memorial-scrapbook",
+  "name": "openmemorial",
   "compatibility_date": "2026-11-06",
   "assets": {
     "directory": "./dist",
@@ -16,7 +16,8 @@
   "observability": {
     "enabled": true,
     "traces": {
-      "enabled": true
+      "enabled": true,
+      "head_sampling_rate": 0.01
     }
   },
   "main": "src/videoWorker.ts",
@@ -24,7 +25,6 @@
     {
       "binding": "NOTES",
       "database_name": "memorial-wall-notes",
-      "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }
   ],
@@ -38,39 +38,9 @@
       }
     }
   ],
-  "secrets": {
-    "required": [
-      "TURNSTILE_SECRET",
-      "TURNSTILE_SITEKEY",
-      "TURNSTILE_HOSTNAMES",
-      "ACCESS_TEAM_DOMAIN",
-      "ACCESS_AUD",
-      "MODERATOR_EMAILS"
-    ]
-  },
-  "r2_buckets": [
-    {
-      "binding": "MEMORY_PHOTOS",
-      "bucket_name": "memorial-memory-photos"
-    }
-  ],
-  "images": {
-    "binding": "IMAGES"
-  },
+  "workers_dev": true,
   "vars": {
-    "NOTIFICATION_FROM": "memories@notifications.example.com",
-    "NOTIFICATION_REVIEW_URL": "https://example.com/family"
-  },
-  "send_email": [
-    {
-      "name": "FAMILY_EMAIL",
-      "allowed_sender_addresses": [
-        "memories@notifications.example.com"
-      ],
-      "allowed_destination_addresses": [
-        "reviewer1@example.com",
-        "reviewer2@example.com"
-      ]
-    }
-  ]
+    "SUBMISSIONS_ENABLED": "false",
+    "PHOTO_UPLOADS_ENABLED": "false"
+  }
 }

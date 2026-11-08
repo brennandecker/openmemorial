@@ -19,7 +19,7 @@ export function WrittenNote({ note }: { note: WallNote }) {
   </article>;
 }
 
-export function LeaveNote({ submitted, close, catalog }: { submitted: () => void; close: () => void; catalog: MemoryCatalog }) {
+export function LeaveNote({ submitted, close, catalog, allowPhoto = true }: { submitted: () => void; close: () => void; catalog: MemoryCatalog; allowPhoto?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [stage, setStage] = useState<"choose" | "compose" | "preview">("choose");
   const [kind, setKind] = useState<"note" | "photo">("note");
@@ -90,7 +90,7 @@ export function LeaveNote({ submitted, close, catalog }: { submitted: () => void
   const shownDate = confirmedDate?.date ? formatMemoryDate(rememberedDate(confirmedDate.date, confirmedDate.dateSource)) : "Date unknown";
   return <dialog ref={dialog} className={`note-dialog memory-intake memory-stage-${stage}`} aria-labelledby="note-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) close(); }} onClick={event => { if (event.target === event.currentTarget && !busy) close(); }}>
     <div className="note-dialog-heading"><h2 id="note-dialog-title" tabIndex={-1}>{stage === "preview" && !sent ? "Preview your memory" : "Share a memory"}</h2><button aria-label="Close note" onClick={close} disabled={busy}>×</button></div>
-    {sent ? <div className="note-thanks" role="status"><h3 tabIndex={-1}>Thank you for sharing.</h3><p>{notified ? `${firstName}’s family has been notified.` : `Your memory has been sent to ${firstName}’s family for review.`} Once approved, your memory will be public on the wall.</p><button className="note-submit" onClick={submitted}>Done</button></div> : stage === "choose" ? <div className="memory-kind-choice"><p>What would you like to share?</p><button onClick={() => { setKind("note"); setError(""); setStage("compose"); }}><MessageSquareText aria-hidden="true" /><span>Share a note<small>A memory in your own words</small></span></button><button onClick={() => { setKind("photo"); setError(""); setStage("compose"); }}><Camera aria-hidden="true" /><span>Share a photo<small>One photograph, with an optional note</small></span></button></div> : stage === "compose" ? <form onSubmit={advance}>
+    {sent ? <div className="note-thanks" role="status"><h3 tabIndex={-1}>Thank you for sharing.</h3><p>{notified ? `${firstName}’s family has been notified.` : `Your memory has been sent to ${firstName}’s family for review.`} Once approved, your memory will be public on the wall.</p><button className="note-submit" onClick={submitted}>Done</button></div> : stage === "choose" ? <div className="memory-kind-choice"><p>What would you like to share?</p><button onClick={() => { setKind("note"); setError(""); setStage("compose"); }}><MessageSquareText aria-hidden="true" /><span>Share a note<small>A memory in your own words</small></span></button>{allowPhoto && <button onClick={() => { setKind("photo"); setError(""); setStage("compose"); }}><Camera aria-hidden="true" /><span>Share a photo<small>One photograph, with an optional note</small></span></button>}</div> : stage === "compose" ? <form onSubmit={advance}>
       <button className="memory-step-back" type="button" onClick={() => { setError(""); setStage("choose"); }}>← Change memory type</button>
       <label htmlFor="note-name">Your name</label><input id="note-name" name="name" autoComplete="name" maxLength={80} value={name} onChange={event => setName(event.target.value)} required />
       {isPhoto && <>

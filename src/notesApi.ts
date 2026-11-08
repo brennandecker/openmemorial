@@ -1,3 +1,4 @@
+import { runtimeFeatures } from "./runtimeFeatures.ts";
 import { curatedWall, publicCurated } from "./curatedWall.ts";
 import { notifyFamily } from "./notifyFamily.ts";
 import { dateBounds, filterBounds } from "./memoryMetadata.ts";
@@ -9,7 +10,7 @@ import { cleanPhotograph, memoryCatalog, photographResponse } from "./photoStora
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const json = (body: unknown, status = 200, extra = {}) => Response.json(body, { status, headers: { ...headers, ...extra } });
 const invalid = (error: string, status = 400) => json({ error }, status);
-type NoteEnv = Pick<CloudflareEnv, "NOTES" | "NOTE_LIMITER" | "TURNSTILE_SECRET" | "TURNSTILE_HOSTNAMES" | "TURNSTILE_SITEKEY" | "MEMORY_PHOTOS" | "IMAGES" | "FAMILY_EMAIL" | "NOTIFICATION_FROM" | "NOTIFICATION_REVIEW_URL" | "MODERATOR_EMAILS">;
+type NoteEnv = Pick<CloudflareEnv, "NOTES" | "NOTE_LIMITER" | "TURNSTILE_SECRET" | "TURNSTILE_HOSTNAMES" | "TURNSTILE_SITEKEY" | "MEMORY_PHOTOS" | "IMAGES" | "FAMILY_EMAIL" | "NOTIFICATION_FROM" | "NOTIFICATION_REVIEW_URL" | "MODERATOR_EMAILS"> & Partial<Pick<CloudflareEnv, "ACCESS_AUD" | "ACCESS_TEAM_DOMAIN">> & { SUBMISSIONS_ENABLED?: string; PHOTO_UPLOADS_ENABLED?: string };
 
 export function validateNote(value: unknown, hasPhoto = false): { name: string; body: string } | null {
   if (!value || typeof value !== "object") return null;
@@ -31,7 +32,7 @@ function selections(url: URL, key: string): string[] | null {
 }
 export async function notesResponse(request: Request, env: NoteEnv): Promise<Response> {
   const url = new URL(request.url);
-  if (url.pathname === "/api/config" && request.method === "GET") return json({ turnstileSitekey: env.TURNSTILE_SITEKEY || "" });
+  if (url.pathname === "/api/config" && request.method === "GET") return json({ turnstileSitekey: env.TURNSTILE_SITEKEY || "", features: runtimeFeatures(env) });
   const photoMatch = /^\/api\/photos\/([a-f0-9-]{36})$/.exec(url.pathname);
   try {
     if (url.pathname === "/api/wall" && request.method === "GET") return json({ items: publicCurated(await curatedWall(env)) });
@@ -62,8 +63,10 @@ export async function notesResponse(request: Request, env: NoteEnv): Promise<Res
     }
     if (request.method !== "POST") return json({ error: "Method not allowed." }, 405, { Allow: "GET, POST" });
     if (request.headers.get("Origin") !== url.origin || request.headers.get("Sec-Fetch-Site") === "cross-site") return invalid("Please post from this website.", 403);
+    if (!runtimeFeatures(env).shareMemory) return invalid("Visitor memories are not enabled on this wall yet.", 503);
     const type = request.headers.get("Content-Type") || "", multipart = type.startsWith("multipart/form-data;");
     if (!multipart && type.split(";")[0].trim() !== "application/json") return invalid("Please use the memory form.", 415);
+    if (multipart && !runtimeFeatures(env).photoUploads) return invalid("This wall currently accepts written memories only.");
     const limit = multipart ? maxPhotoBytes + 32768 : 8192;
     if (Number(request.headers.get("Content-Length")) > limit) return invalid("Choose one photograph up to 10 MB.", 413);
     const { success } = await env.NOTE_LIMITER.limit({ key: `wall:${request.headers.get("CF-Connecting-IP") || "local"}` });

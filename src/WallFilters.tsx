@@ -4,7 +4,7 @@ import type { MemoryCatalog } from "./memoryPhoto";
 import { initialMemorial } from "./memorial";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
-export function WallFilters({ value, change, years, share, play, canPlay, catalog: { people, places } }: { value: Filters; change: (filters: Filters) => void; years: number[]; share: () => void; play: () => void; canPlay: boolean; catalog: MemoryCatalog }) {
+export function WallFilters({ value, change, years, share, play, canPlay, allowSharing = true, catalog: { people, places } }: { value: Filters; change: (filters: Filters) => void; years: number[]; share: () => void; play: () => void; canPlay: boolean; allowSharing?: boolean; catalog: MemoryCatalog }) {
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   const menuToggle = useRef<HTMLElement>(null);
@@ -31,7 +31,7 @@ export function WallFilters({ value, change, years, share, play, canPlay, catalo
     <details className="wall-menu" ref={menu}>
       <summary ref={menuToggle} aria-label="Wall menu" title="Menu"><Menu size={24} strokeWidth={1.5} aria-hidden="true" />{active && <span className="filter-active-dot" aria-hidden="true" />}</summary>
       <nav aria-label="Wall actions">
-        <button onClick={() => { closeMenu(); share(); }}><MessageSquarePlus size={19} strokeWidth={1.5} aria-hidden="true" />Share a memory</button>
+        {allowSharing && <button onClick={() => { closeMenu(); share(); }}><MessageSquarePlus size={19} strokeWidth={1.5} aria-hidden="true" />Share a memory</button>}
         <button onClick={() => { closeMenu(); play(); }} disabled={!canPlay} title={canPlay ? "Play the selected photos" : "Choose two or more photos for a slideshow"}><Play size={19} strokeWidth={1.5} aria-hidden="true" />Play slideshow</button>
         <button aria-expanded={open} aria-controls="wall-filter-panel" onClick={() => { closeMenu(); setOpen(value => !value); }}><SlidersHorizontal size={19} strokeWidth={1.5} aria-hidden="true" />Filter wall</button>
       </nav>

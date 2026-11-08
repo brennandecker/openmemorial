@@ -1,0 +1,25 @@
+{
+  "name": "Alex Example",
+  "workerName": "remembering-alex",
+  "birth": "",
+  "death": "",
+  "timeZone": "America/New_York",
+  "privacyEmail": "replace-with-your-public-email",
+  "managers": [],
+  "notes": true,
+  "accountId": "",
+  "photos": [
+    {
+      "file": "photos/favorite.jpg",
+      "caption": "A favorite photograph",
+      "people": [],
+      "date": "",
+      "dateSource": "family",
+      "city": "",
+      "state": "",
+      "country": "",
+      "message": ""
+    }
+  ],
+  "portrait": 0
+}

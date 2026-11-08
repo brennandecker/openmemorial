@@ -1,3 +1,7 @@
+# Deployment profiles
+
+The default **free starter** supports visitor text notes. Bundled family photographs remain part of the source site. Visitor photo uploads and outgoing notification emails are off. See SETUP.md for automated family sign-in, exact manager emails, bot verification, and migrations. The optional upload configuration is `config/wrangler.uploads.jsonc`; its photo behavior is documented below and applies only when enabled. Existing installations must preserve their storage and bindings during upgrades.
+
 # Family approval
 
 Anyone may submit a memory with text, one photograph, or both. New records always enter `pending`, remain absent from the public API, and require one authorized reviewer to publish them. The curated opening verse is source content rather than a visitor submission.

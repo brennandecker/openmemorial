@@ -131,3 +131,6 @@
 @media(max-width:600px){.wall-header-print{padding:5px}.wall-header-print>span{border-width:3px}}
 
 .note-thanks p{font:28px/1.4 var(--hand);margin:20px 0 30px}.note-verification{margin:12px 0;min-width:0}.note-verification button{text-decoration:underline;min-height:44px}.note-dialog .note-submit:disabled{opacity:.45;cursor:default}
+
+/* The reusable starter accepts portraits without a photo-specific crop. */
+.wall-header-print img{object-position:center;transform:none}

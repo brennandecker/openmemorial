@@ -8,3 +8,7 @@ dist/
 
 coverage/
 *.log
+
+# Private onboarding state, original inputs, manager addresses, and runtime secrets
+.openmemorial/
+memorial.answers.json

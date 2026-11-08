@@ -68,7 +68,7 @@ export function isMemorial(value: unknown): value is Memorial {
     && (v.videos === undefined || (Array.isArray(v.videos) && v.videos.length <= 3 && v.videos.every(validVideo)))
     && (v.familyMediaVersion === undefined || v.familyMediaVersion === 1 || v.familyMediaVersion === 2)
     && validImage(v.portrait) && ["olive", "clay", "blue"].includes(v.theme as string)
-    && Array.isArray(v.photos) && v.photos.length <= 12 && v.photos.every(validImage)
+    && Array.isArray(v.photos) && v.photos.length <= 200 && v.photos.every(validImage)
     && Array.isArray(v.memories) && v.memories.length <= 500 && v.memories.every(x => x && typeof x.id === "string" && typeof x.author === "string" && x.author.length <= 100 && typeof x.text === "string" && x.text.length <= 4000);
 }
 
